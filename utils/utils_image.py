@@ -5,9 +5,9 @@ import numpy as np
 import torch
 import cv2
 from torchvision.utils import make_grid
-from datetime import datetime
-# import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
+from PIL import Image
+import utils.utils_file as file
 from mpl_toolkits.mplot3d import Axes3D
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -21,18 +21,6 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 # https://github.com/xinntao/BasicSR
 # --------------------------------------------
 '''
-
-
-IMG_EXTENSIONS = ['.jpg', '.JPG', '.jpeg', '.JPEG', '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tif']
-
-
-def is_image_file(filename):
-    return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
-
-
-def get_timestamp():
-    return datetime.now().strftime('%y%m%d-%H%M%S')
-
 
 def imshow(x, title=None, cbar=False, figsize=None):
     plt.figure(figsize=figsize)
@@ -55,36 +43,6 @@ def surf(Z, cmap='rainbow', figsize=None):
     ax3.plot_surface(X,Y,Z,cmap=cmap)
     #ax3.contour(X,Y,Z, zdim='z',offset=-2，cmap=cmap)
     plt.show()
-
-
-'''
-# --------------------------------------------
-# get image pathes
-# --------------------------------------------
-'''
-
-
-def get_image_paths(dataroot):
-    paths = None  # return None if dataroot is None
-    if isinstance(dataroot, str):
-        paths = sorted(_get_paths_from_images(dataroot))
-    elif isinstance(dataroot, list):
-        paths = []
-        for i in dataroot:
-            paths += sorted(_get_paths_from_images(i))
-    return paths
-
-
-def _get_paths_from_images(path):
-    assert os.path.isdir(path), '{:s} is not a valid directory'.format(path)
-    images = []
-    for dirpath, _, fnames in sorted(os.walk(path)):
-        for fname in sorted(fnames):
-            if is_image_file(fname):
-                img_path = os.path.join(dirpath, fname)
-                images.append(img_path)
-    assert images, '{:s} has no valid image file'.format(path)
-    return images
 
 
 '''
@@ -138,7 +96,7 @@ def split_imageset(original_dataroot, taget_dataroot, n_channels=3, p_size=512, 
         p_overlap: patch size in training is a good choice
         p_max: images with smaller size than (p_max)x(p_max) keep unchanged.
     """
-    paths = get_image_paths(original_dataroot)
+    paths = file.get_image_paths(original_dataroot)
     for img_path in paths:
         # img_name, ext = os.path.splitext(os.path.basename(img_path))
         img = imread_uint(img_path, n_channels=n_channels)
@@ -147,33 +105,6 @@ def split_imageset(original_dataroot, taget_dataroot, n_channels=3, p_size=512, 
         #if original_dataroot == taget_dataroot:
         #del img_path
 
-'''
-# --------------------------------------------
-# makedir
-# --------------------------------------------
-'''
-
-
-def mkdir(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-
-def mkdirs(paths):
-    if isinstance(paths, str):
-        mkdir(paths)
-    else:
-        for path in paths:
-            mkdir(path)
-
-
-def mkdir_and_rename(path):
-    if os.path.exists(path):
-        new_name = path + '_archived_' + get_timestamp()
-        print('Path already exists. Rename it to [{:s}]'.format(new_name))
-        os.rename(path, new_name)
-    os.makedirs(path)
-
 
 '''
 # --------------------------------------------
@@ -181,7 +112,6 @@ def mkdir_and_rename(path):
 # opencv is fast, but read BGR numpy image
 # --------------------------------------------
 '''
-
 
 # --------------------------------------------
 # get uint8 image of size HxWxn_channles (RGB)
@@ -612,175 +542,11 @@ def channel_convert(in_c, tar_type, img_list):
     else:
         return img_list
 
-
-'''
-# --------------------------------------------
-# metric, PSNR, SSIM and PSNRB
-# --------------------------------------------
-'''
-
-
-# --------------------------------------------
-# PSNR
-# --------------------------------------------
-def calculate_psnr(img1, img2, border=0):
-    # img1 and img2 have range [0, 255]
-    #img1 = img1.squeeze()
-    #img2 = img2.squeeze()
-    if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
-    h, w = img1.shape[:2]
-    img1 = img1[border:h-border, border:w-border]
-    img2 = img2[border:h-border, border:w-border]
-
-    img1 = img1.astype(np.float64)
-    img2 = img2.astype(np.float64)
-    mse = np.mean((img1 - img2)**2)
-    if mse == 0:
-        return float('inf')
-    return 20 * math.log10(255.0 / math.sqrt(mse))
-
-
-# --------------------------------------------
-# SSIM
-# --------------------------------------------
-def calculate_ssim(img1, img2, border=0):
-    '''calculate SSIM
-    the same outputs as MATLAB's
-    img1, img2: [0, 255]
-    '''
-    #img1 = img1.squeeze()
-    #img2 = img2.squeeze()
-    if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
-    h, w = img1.shape[:2]
-    img1 = img1[border:h-border, border:w-border]
-    img2 = img2[border:h-border, border:w-border]
-
-    if img1.ndim == 2:
-        return ssim(img1, img2)
-    elif img1.ndim == 3:
-        if img1.shape[2] == 3:
-            ssims = []
-            for i in range(3):
-                ssims.append(ssim(img1[:,:,i], img2[:,:,i]))
-            return np.array(ssims).mean()
-        elif img1.shape[2] == 1:
-            return ssim(np.squeeze(img1), np.squeeze(img2))
-    else:
-        raise ValueError('Wrong input image dimensions.')
-
-
-def ssim(img1, img2):
-    C1 = (0.01 * 255)**2
-    C2 = (0.03 * 255)**2
-
-    img1 = img1.astype(np.float64)
-    img2 = img2.astype(np.float64)
-    kernel = cv2.getGaussianKernel(11, 1.5)
-    window = np.outer(kernel, kernel.transpose())
-
-    mu1 = cv2.filter2D(img1, -1, window)[5:-5, 5:-5]  # valid
-    mu2 = cv2.filter2D(img2, -1, window)[5:-5, 5:-5]
-    mu1_sq = mu1**2
-    mu2_sq = mu2**2
-    mu1_mu2 = mu1 * mu2
-    sigma1_sq = cv2.filter2D(img1**2, -1, window)[5:-5, 5:-5] - mu1_sq
-    sigma2_sq = cv2.filter2D(img2**2, -1, window)[5:-5, 5:-5] - mu2_sq
-    sigma12 = cv2.filter2D(img1 * img2, -1, window)[5:-5, 5:-5] - mu1_mu2
-
-    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                                            (sigma1_sq + sigma2_sq + C2))
-    return ssim_map.mean()
-
-
-def _blocking_effect_factor(im):
-    block_size = 8
-
-    block_horizontal_positions = torch.arange(7, im.shape[3] - 1, 8)
-    block_vertical_positions = torch.arange(7, im.shape[2] - 1, 8)
-
-    horizontal_block_difference = (
-                (im[:, :, :, block_horizontal_positions] - im[:, :, :, block_horizontal_positions + 1]) ** 2).sum(
-        3).sum(2).sum(1)
-    vertical_block_difference = (
-                (im[:, :, block_vertical_positions, :] - im[:, :, block_vertical_positions + 1, :]) ** 2).sum(3).sum(
-        2).sum(1)
-
-    nonblock_horizontal_positions = np.setdiff1d(torch.arange(0, im.shape[3] - 1), block_horizontal_positions)
-    nonblock_vertical_positions = np.setdiff1d(torch.arange(0, im.shape[2] - 1), block_vertical_positions)
-
-    horizontal_nonblock_difference = (
-                (im[:, :, :, nonblock_horizontal_positions] - im[:, :, :, nonblock_horizontal_positions + 1]) ** 2).sum(
-        3).sum(2).sum(1)
-    vertical_nonblock_difference = (
-                (im[:, :, nonblock_vertical_positions, :] - im[:, :, nonblock_vertical_positions + 1, :]) ** 2).sum(
-        3).sum(2).sum(1)
-
-    n_boundary_horiz = im.shape[2] * (im.shape[3] // block_size - 1)
-    n_boundary_vert = im.shape[3] * (im.shape[2] // block_size - 1)
-    boundary_difference = (horizontal_block_difference + vertical_block_difference) / (
-                n_boundary_horiz + n_boundary_vert)
-
-    n_nonboundary_horiz = im.shape[2] * (im.shape[3] - 1) - n_boundary_horiz
-    n_nonboundary_vert = im.shape[3] * (im.shape[2] - 1) - n_boundary_vert
-    nonboundary_difference = (horizontal_nonblock_difference + vertical_nonblock_difference) / (
-                n_nonboundary_horiz + n_nonboundary_vert)
-
-    scaler = np.log2(block_size) / np.log2(min([im.shape[2], im.shape[3]]))
-    bef = scaler * (boundary_difference - nonboundary_difference)
-
-    bef[boundary_difference <= nonboundary_difference] = 0
-    return bef
-
-
-def calculate_psnrb(img1, img2, border=0):
-    """Calculate PSNR-B (Peak Signal-to-Noise Ratio).
-    Ref: Quality assessment of deblocked images, for JPEG image deblocking evaluation
-    # https://gitlab.com/Queuecumber/quantization-guided-ac/-/blob/master/metrics/psnrb.py
-    Args:
-        img1 (ndarray): Images with range [0, 255].
-        img2 (ndarray): Images with range [0, 255].
-        border (int): Cropped pixels in each edge of an image. These
-            pixels are not involved in the PSNR calculation.
-        test_y_channel (bool): Test on Y channel of YCbCr. Default: False.
-    Returns:
-        float: psnr result.
-    """
-
-    if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
-
-    if img1.ndim == 2:
-        img1, img2 = np.expand_dims(img1, 2), np.expand_dims(img2, 2)
-
-    h, w = img1.shape[:2]
-    img1 = img1[border:h-border, border:w-border]
-    img2 = img2[border:h-border, border:w-border]
-
-    img1 = img1.astype(np.float64)
-    img2 = img2.astype(np.float64)
-
-    # follow https://gitlab.com/Queuecumber/quantization-guided-ac/-/blob/master/metrics/psnrb.py
-    img1 = torch.from_numpy(img1).permute(2, 0, 1).unsqueeze(0) / 255.
-    img2 = torch.from_numpy(img2).permute(2, 0, 1).unsqueeze(0) / 255.
-
-    total = 0
-    for c in range(img1.shape[1]):
-        mse = torch.nn.functional.mse_loss(img1[:, c:c + 1, :, :], img2[:, c:c + 1, :, :], reduction='none')
-        bef = _blocking_effect_factor(img1[:, c:c + 1, :, :])
-
-        mse = mse.view(mse.shape[0], -1).mean(1)
-        total += 10 * torch.log10(1 / (mse + bef))
-
-    return float(total) / img1.shape[1]
-
 '''
 # --------------------------------------------
 # matlab's bicubic imresize (numpy and torch) [0, 1]
 # --------------------------------------------
 '''
-
 
 # matlab 'imresize' function, now only support 'bicubic'
 def cubic(x):
@@ -994,20 +760,11 @@ def imresize_np(img, scale, antialiasing=True):
 
     return out_2.numpy()
 
-
-if __name__ == '__main__':
-    img = imread_uint('test.bmp', 3)
-#    img = uint2single(img)
-#    img_bicubic = imresize_np(img, 1/4)
-#    imshow(single2uint(img_bicubic))
-#
-#    img_tensor = single2tensor4(img)
-#    for i in range(8):
-#        imshow(np.concatenate((augment_img(img, i), tensor2single(augment_img_tensor4(img_tensor, i))), 1))
-    
-#    patches = patches_from_image(img, p_size=128, p_overlap=0, p_max=200)
-#    imssave(patches,'a.png')
-
+'''
+# --------------------------------------------
+# Other Operations
+# --------------------------------------------
+'''
 
 # --------------------------------------------
 # Seg mask
@@ -1027,3 +784,52 @@ def binary_watersheding(img):
     _, bw = cv2.threshold(bw, 40, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     return bw
     
+# --------------------------------------------
+# Random Crop
+# https://github.com/openai/guided-diffusion/blob/main/guided_diffusion/image_datasets.py
+# --------------------------------------------
+def random_crop_arr(pil_image, image_size, min_crop_frac=0.8, max_crop_frac=1.0):
+    min_smaller_dim_size = math.ceil(image_size / max_crop_frac)
+    max_smaller_dim_size = math.ceil(image_size / min_crop_frac)
+    smaller_dim_size = random.randrange(min_smaller_dim_size, max_smaller_dim_size + 1)
+
+    # We are not on a new enough PIL to support the `reducing_gap`
+    # argument, which uses BOX downsampling at powers of two first.
+    # Thus, we do it by hand to improve downsample quality.
+    while min(*pil_image.size) >= 2 * smaller_dim_size:
+        pil_image = pil_image.resize(
+            tuple(x // 2 for x in pil_image.size), resample=Image.BOX
+        )
+
+    scale = smaller_dim_size / min(*pil_image.size)
+    pil_image = pil_image.resize(
+        tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
+    )
+
+    arr = np.array(pil_image)
+    crop_y = random.randrange(arr.shape[0] - image_size + 1)
+    crop_x = random.randrange(arr.shape[1] - image_size + 1)
+    return arr[crop_y : crop_y + image_size, crop_x : crop_x + image_size]
+
+# --------------------------------------------
+# Center Crop
+# https://github.com/openai/guided-diffusion/blob/main/guided_diffusion/image_datasets.py
+# --------------------------------------------
+def center_crop_arr(pil_image, image_size):
+    # We are not on a new enough PIL to support the `reducing_gap`
+    # argument, which uses BOX downsampling at powers of two first.
+    # Thus, we do it by hand to improve downsample quality.
+    while min(*pil_image.size) >= 2 * image_size:
+        pil_image = pil_image.resize(
+            tuple(x // 2 for x in pil_image.size), resample=Image.BOX
+        )
+
+    scale = image_size / min(*pil_image.size)
+    pil_image = pil_image.resize(
+        tuple(round(x * scale) for x in pil_image.size), resample=Image.BICUBIC
+    )
+
+    arr = np.array(pil_image)
+    crop_y = (arr.shape[0] - image_size) // 2
+    crop_x = (arr.shape[1] - image_size) // 2
+    return arr[crop_y : crop_y + image_size, crop_x : crop_x + image_size]
