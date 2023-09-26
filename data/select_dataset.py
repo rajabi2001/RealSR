@@ -6,7 +6,6 @@
 # --------------------------------------------
 '''
 
-
 def define_Dataset(dataset_opt):
     dataset_type = dataset_opt['dataset_type'].lower()
     
@@ -14,7 +13,7 @@ def define_Dataset(dataset_opt):
     # Real Image Super-Resolution
     # -----------------------------------------
     if dataset_type in ['stage1', 'swinir1']:
-        from data.dataset_sr import DatasetSR as D
+        from data.dataset_stage1 import DatasetStage1 as D
     
     else:
         raise NotImplementedError('Dataset [{:s}] is not found.'.format(dataset_type))
