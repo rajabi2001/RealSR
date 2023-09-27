@@ -16,7 +16,7 @@ dataset:
   noise_target: true
   sig_min_target: 0.2
   sig_max_target: 0.2
-  noise_high_target: 20/255
+  noise_high_target: 20
 
   blur_kernel_size1: 21
   kernel_list1: ['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso']

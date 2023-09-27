@@ -39,7 +39,7 @@ class DatasetStage1(data.Dataset):
         self.noise_target = opt['noise_target']
         self.sig_min_target = opt['sig_min_target']
         self.sig_max_target = opt['sig_max_target']
-        self.noise_high_target = opt['noise_high_target']
+        self.noise_high_target = opt['noise_high_target']/255
 
         self.blur_kernel_size1 = opt['blur_kernel_size1']
         self.kernel_list1 = opt['kernel_list1']
@@ -168,7 +168,7 @@ class DatasetStage1(data.Dataset):
             scale=self.deg_scale_target, pca_matrix=pca_matrix,
             ksize=self.blur_kernel_size_target, code_length=self.code_length,
             random_kernel=self.random_kernel_target, noise=self.noise_target, cuda=torch.cuda.is_available(), random_disturb=False,
-            sig=0, sig_min=self.sig_min_target, sig_max=self.sig_max_target, rate_iso=0.0, rate_cln=0.0, noise_high=self.noise_high_target,
+            sig=0, sig_min=self.sig_min_target, sig_max=self.sig_max_target, rate_iso=0.0, rate_cln=0.0, noise_high=float(self.noise_high_target),
             stored_kernel=False, pre_kernel_path=None
         )
 
@@ -211,7 +211,9 @@ class DatasetStage1(data.Dataset):
         # ------------------------------------
         # The target degradation process
         # ------------------------------------
-        target_lr, target_deg = deg_process(img_hq, kernel=False) 
+        target_lr, target_deg = deg_process(img_hq, kernel=False)
+        # target_lr = F.interpolate(target_lr, size=(ori_h, ori_w), mode="bicubic")
+        target_lr = target_lr.float().contiguous().squeeze() 
 
         # ------------------------------------
         # The first degradation process
