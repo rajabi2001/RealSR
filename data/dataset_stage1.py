@@ -11,6 +11,7 @@ from PIL import Image
 import torch
 from torch.nn import functional as F
 from typing import Sequence
+from deg.degradation import SRMDPreprocessing
 
 
 class DatasetStage1(data.Dataset):
@@ -29,6 +30,16 @@ class DatasetStage1(data.Dataset):
         self.crop_type = opt['crop_type']
         self.hflip = opt['hflip']
         self.rotation = opt['rotation']
+
+        self.deg_scale_target = opt['deg_scale_target']
+        self.pca_matrix_path = opt['pca_matrix_path']
+        self.blur_kernel_size_target = opt['blur_kernel_size_target']
+        self.code_length = opt['code_length']
+        self.random_kernel_target = opt['random_kernel_target']
+        self.noise_target = opt['noise_target']
+        self.sig_min_target = opt['sig_min_target']
+        self.sig_max_target = opt['sig_max_target']
+        self.noise_high_target = opt['noise_high_target']
 
         self.blur_kernel_size1 = opt['blur_kernel_size1']
         self.kernel_list1 = opt['kernel_list1']
@@ -148,6 +159,18 @@ class DatasetStage1(data.Dataset):
         else:
             sinc_kernel = self.pulse_tensor
 
+        # ------------------------------------
+        # degradation setup for Target LR
+        # ------------------------------------
+        pca_matrix_path = self.pca_matrix_path
+        pca_matrix = torch.load(pca_matrix_path, map_location=lambda storage, loc: storage)
+        deg_process = SRMDPreprocessing(
+            scale=self.deg_scale_target, pca_matrix=pca_matrix,
+            ksize=self.blur_kernel_size_target, code_length=self.code_length,
+            random_kernel=self.random_kernel_target, noise=self.noise_target, cuda=torch.cuda.is_available(), random_disturb=False,
+            sig=0, sig_min=self.sig_min_target, sig_max=self.sig_max_target, rate_iso=0.0, rate_cln=0.0, noise_high=self.noise_high_target,
+            stored_kernel=False, pre_kernel_path=None
+        )
 
         # ------------------------------------
         # get H image
@@ -185,6 +208,10 @@ class DatasetStage1(data.Dataset):
         kernel2 = torch.FloatTensor(kernel2)
         ori_h, ori_w = img_hq.shape[2:]
 
+        # ------------------------------------
+        # The target degradation process
+        # ------------------------------------
+        target_lr, target_deg = deg_process(img_hq, kernel=False) 
 
         # ------------------------------------
         # The first degradation process
@@ -311,7 +338,7 @@ class DatasetStage1(data.Dataset):
         # hr = (img_hq * 2 - 1).float().permute(0, 2, 3, 1).contiguous()
         hr = img_hq.float().contiguous().squeeze()
 
-        return {'L': lr, 'H': hr, 'H_path': H_path}
+        return {'L': lr, "Target L": target_lr, 'H': hr, 'H_path': H_path}
 
     def __len__(self):
         return len(self.paths_H)
@@ -325,7 +352,9 @@ if __name__ == '__main__':
     output = mydataset[index]
     hr = output["H"]
     lr = output["L"]
+    lr_target = output["Target L"]
     p = output["H_path"]
     T.ToPILImage()(hr).show()
     T.ToPILImage()(lr).show()
+    T.ToPILImage()(lr_target).show()
     print("successful")
