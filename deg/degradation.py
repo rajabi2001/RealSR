@@ -94,6 +94,7 @@ def b_Bicubic(variable, scale):
     W_new = int(W / scale)
     tensor_v = variable.view((B, C, H, W))
     re_tensor = imresize(tensor_v, 1 / scale)
+    re_tensor = imresize(re_tensor, scale)
     return re_tensor
 
 

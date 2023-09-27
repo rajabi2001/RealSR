@@ -94,6 +94,19 @@ class DatasetStage1(data.Dataset):
         # ------------------------------------
         self.paths_H = utils_file.get_image_paths(self.dataroot_H )
 
+         # ------------------------------------
+        # degradation setup for Target LR
+        # ------------------------------------
+        pca_matrix_path = self.pca_matrix_path
+        pca_matrix = torch.load(pca_matrix_path, map_location=lambda storage, loc: storage)
+        self.deg_process = SRMDPreprocessing(
+            scale=self.deg_scale_target, pca_matrix=pca_matrix,
+            ksize=self.blur_kernel_size_target, code_length=self.code_length,
+            random_kernel=self.random_kernel_target, noise=self.noise_target, cuda=torch.cuda.is_available(), random_disturb=False,
+            sig=0, sig_min=self.sig_min_target, sig_max=self.sig_max_target, rate_iso=0.0, rate_cln=0.0, noise_high=float(self.noise_high_target),
+            stored_kernel=False, pre_kernel_path=None
+        )
+
         assert self.paths_H, 'Error: H path is empty.'
 
     @torch.no_grad()
@@ -159,18 +172,6 @@ class DatasetStage1(data.Dataset):
         else:
             sinc_kernel = self.pulse_tensor
 
-        # ------------------------------------
-        # degradation setup for Target LR
-        # ------------------------------------
-        pca_matrix_path = self.pca_matrix_path
-        pca_matrix = torch.load(pca_matrix_path, map_location=lambda storage, loc: storage)
-        deg_process = SRMDPreprocessing(
-            scale=self.deg_scale_target, pca_matrix=pca_matrix,
-            ksize=self.blur_kernel_size_target, code_length=self.code_length,
-            random_kernel=self.random_kernel_target, noise=self.noise_target, cuda=torch.cuda.is_available(), random_disturb=False,
-            sig=0, sig_min=self.sig_min_target, sig_max=self.sig_max_target, rate_iso=0.0, rate_cln=0.0, noise_high=float(self.noise_high_target),
-            stored_kernel=False, pre_kernel_path=None
-        )
 
         # ------------------------------------
         # get H image
@@ -211,8 +212,7 @@ class DatasetStage1(data.Dataset):
         # ------------------------------------
         # The target degradation process
         # ------------------------------------
-        target_lr, target_deg = deg_process(img_hq, kernel=False)
-        # target_lr = F.interpolate(target_lr, size=(ori_h, ori_w), mode="bicubic")
+        target_lr, target_deg = self.deg_process (img_hq, kernel=False)
         target_lr = target_lr.float().contiguous().squeeze() 
 
         # ------------------------------------
