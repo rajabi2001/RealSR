@@ -25,6 +25,15 @@ class DatasetStage1(data.Dataset):
         super(DatasetStage1, self).__init__()
         self.opt = opt
 
+        # ------------------------------------
+        # get paths of H
+        # ------------------------------------
+        self.paths_H = utils_file.get_image_paths(self.dataroot_H )
+        assert self.paths_H, 'Error: H path is empty.'
+
+        if self.opt['phase'] != 'train':
+            return
+
         self.dataroot_H = opt['dataroot_H']
         self.out_size = opt['out_size']
         self.crop_type = opt['crop_type']
@@ -89,12 +98,8 @@ class DatasetStage1(data.Dataset):
         self.pulse_tensor[10, 10] = 1
         self.jpeger = utils_deg.DiffJPEG(differentiable=False)
 
+       
         # ------------------------------------
-        # get paths of H
-        # ------------------------------------
-        self.paths_H = utils_file.get_image_paths(self.dataroot_H )
-
-         # ------------------------------------
         # degradation setup for Target LR
         # ------------------------------------
         pca_matrix_path = self.pca_matrix_path
@@ -107,10 +112,19 @@ class DatasetStage1(data.Dataset):
             stored_kernel=False, pre_kernel_path=None
         )
 
-        assert self.paths_H, 'Error: H path is empty.'
 
     @torch.no_grad()
     def __getitem__(self, index):
+
+        # ------------------------------------
+        # Test Phase
+        # ------------------------------------
+        if self.opt['phase'] != 'train':
+            H_path = self.paths_H[index]
+            img_lr = Image.open(H_path).convert("RGB")
+            img_lr = (img_lr[..., ::-1] / 255.0).astype(np.float32)
+            img_lr = torch.from_numpy(img_lr[..., ::-1].transpose(2, 0, 1).copy()).float().contiguous()
+            return {'L': img_lr}
 
         # ------------------------------------
         # Generate kernels (used in the first and second degradation)
@@ -340,7 +354,7 @@ class DatasetStage1(data.Dataset):
         # hr = (img_hq * 2 - 1).float().permute(0, 2, 3, 1).contiguous()
         hr = img_hq.float().contiguous().squeeze()
 
-        return {'L': lr, "Target L": target_lr, 'H': hr, 'H_path': H_path}
+        return {'L': lr, "LT": target_lr}
 
     def __len__(self):
         return len(self.paths_H)
@@ -352,11 +366,8 @@ if __name__ == '__main__':
     mydataset = DatasetStage1(config['dataset'])
     index = 2
     output = mydataset[index]
-    hr = output["H"]
     lr = output["L"]
-    lr_target = output["Target L"]
-    p = output["H_path"]
-    T.ToPILImage()(hr).show()
+    lr_target = output["LT"]
     T.ToPILImage()(lr).show()
     T.ToPILImage()(lr_target).show()
     print("successful")

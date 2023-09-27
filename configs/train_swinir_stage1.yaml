@@ -1,4 +1,91 @@
-model:
+task: swinir_stage1
+model: plain
+gpu_ids: [0]
+dist: false
+
+path:
+  root: realsuperresolution
+  pretrained_netG: ~
+  pretrained_netE: ~
+
+datasets:
+
+  train:
+    name: train_dataset
+    dataset_type: stage1
+    dataroot_H: ./trainsets
+    H_size: 512
+    dataloader_shuffle: true
+    dataloader_num_workers: 1
+    dataloader_batch_size: 16
+
+    params:
+      n_channels: 3
+      crop_type: center
+
+      hflip: false
+      rotation: false
+
+      deg_scale_target: 4
+      pca_matrix_path: 'deg/pca_aniso_matrix_x4.pth'
+      blur_kernel_size_target: 31
+      code_length: 15
+      random_kernel_target: true
+      noise_target: true
+      sig_min_target: 0.2
+      sig_max_target: 0.2
+      noise_high_target: 20
+
+      blur_kernel_size1: 21
+      kernel_list1: ['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso']
+      kernel_prob1: [0.45, 0.25, 0.12, 0.03, 0.12, 0.03]
+      sinc_prob1: 0.1
+      blur_sigma1: [0.2, 3]
+      betag_range1: [0.5, 4]
+      betap_range1: [1, 2]
+
+      blur_kernel_size2: 21
+      kernel_list2: ['iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso']
+      kernel_prob2: [0.45, 0.25, 0.12, 0.03, 0.12, 0.03]
+      sinc_prob2: 0.1
+      blur_sigma2: [0.2, 1.5]
+      betag_range2: [0.5, 4]
+      betap_range2: [1, 2]
+
+      final_sinc_prob: 0.8
+
+      use_sharpener: false
+      resize_hq: false
+      # Queue size of training pool, this should be multiples of batch_size.
+      queue_size: 256
+      # the first degradation process
+      resize_prob1: [0.2, 0.7, 0.1] # up, down, keep
+      resize_range1: [0.15, 1.5]
+      gaussian_noise_prob1: 0.5
+      noise_range1: [1, 30]
+      poisson_scale_range1: [0.05, 3]
+      gray_noise_prob1: 0.4
+      jpeg_range1: [30, 95]
+
+      # the second degradation process
+      scale: 4
+      blur_prob: 0.8
+      resize_prob2: [0.3, 0.4, 0.3] # up, down, keep
+      resize_range2: [0.3, 1.2]
+      gaussian_noise_prob2: 0.5
+      noise_range2: [1, 25]
+      poisson_scale_range2: [0.05, 2.5]
+      gray_noise_prob2: 0.4
+      jpeg_range2: [30, 95]
+
+  test:
+    name: test_dataset
+    dataset_type: stage1
+    dataroot_H: ./testsets
+
+  
+netG:
+  net_type: stage1
   img_size: 64
   in_chans: 3
   embed_dim: 180
@@ -12,3 +99,29 @@ model:
   resi_connection: "1conv"
   unshuffle: True
   unshuffle_scale: 8
+
+train:
+  G_lossfn_type: l1             
+  G_lossfn_weight: 1.0           
+
+  E_decay": 0.999             
+
+  G_optimizer_type: adam      
+  G_optimizer_lr: 2e-4           
+  G_optimizer_wd: 0              
+  G_optimizer_clipgrad: null     
+  G_optimizer_reuse: true        
+
+  G_scheduler_type: MultiStepLR
+  G_scheduler_milestones: [250000, 400000, 450000, 475000, 500000]
+  G_scheduler_gamma: 0.5
+
+  G_regularizer_orthstep: null   
+  G_regularizer_clipstep: null   
+
+  G_param_strict: true
+  E_param_strict: true
+
+  checkpoint_test: 100           
+  checkpoint_save: 500           
+  checkpoint_print: 20           
