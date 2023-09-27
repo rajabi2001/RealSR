@@ -1,13 +1,12 @@
 import os
-
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils_deg import imresize
 from scipy.io import loadmat
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
+from utils.utils_deg import imresize
 
 
 def PCA(data, k=2):
@@ -285,8 +284,6 @@ class SRMDPreprocessing(object):
 
 if __name__ == '__main__':
 
-    print(torch.cuda.is_available())
-
     # load PCA matrix of enough kernel
     pca_matrix_path = 'pca_aniso_matrix_x4.pth'
     pca_matrix = torch.load(pca_matrix_path, map_location=lambda storage, loc: storage)
@@ -302,7 +299,7 @@ if __name__ == '__main__':
     )
 
     # load and prepaer HR image
-    img_hr = plt.imread('Set5/baby.png')
+    img_hr = plt.imread('IMAGE PATH')
     img_hr = torch.from_numpy(img_hr).permute(2, 0, 1) # (h, w, c)
     img_hr = img_hr.unsqueeze(0) # (b, h, w, c)
     img_hr = img_hr.cuda()
