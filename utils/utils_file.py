@@ -77,3 +77,31 @@ def _get_paths_from_images(path):
                 images.append(img_path)
     assert images, '{:s} has no valid image file'.format(path)
     return images
+
+
+
+'''
+# --------------------------------------------
+# get image pathes
+# --------------------------------------------
+'''
+
+def get_file_paths(dataroot):
+    paths = None  # return None if dataroot is None
+    if isinstance(dataroot, str):
+        paths = sorted(_get_paths_from_files(dataroot))
+    elif isinstance(dataroot, list):
+        paths = []
+        for i in dataroot:
+            paths += sorted(_get_paths_from_files(i))
+    return paths
+
+
+def _get_paths_from_files(path):
+    assert os.path.isdir(path), '{:s} is not a valid directory'.format(path)
+    files = []
+    for dirpath, _, fnames in sorted(os.walk(path)):
+        for fname in sorted(fnames):
+            img_path = os.path.join(dirpath, fname)
+            files.append(img_path)
+    return files
